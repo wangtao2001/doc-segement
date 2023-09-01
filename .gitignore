@@ -1,1 +1,6 @@
 .vscode
+.idea
+__pycache__
+data/label/test/*
+data/label/train/*
+model
