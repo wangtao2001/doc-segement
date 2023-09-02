@@ -1,5 +1,6 @@
 import pdfplumber
 import docx
+import os
 
 
 def load_pdf(path):
@@ -19,7 +20,7 @@ def load_pdf(path):
                     contents.append(c)
     return contents
 
-
+# 仅支持docx格式
 def load_docx(path):
     contents = []
     doc = docx.Document(path)
@@ -30,7 +31,7 @@ def load_docx(path):
     return contents
 
 
-def doc2text(path):
+def doc2text(path, save_path):
     if path.endswith('.pdf'):
         out = load_pdf(path)
     elif path.endswith('.doc') or path.endswith('.docx'):
@@ -38,9 +39,6 @@ def doc2text(path):
     else:
         raise Exception('文件格式不支持')
     file_name = path.split('/')[-1].split('.')[0]
-    with open(f'data/predict/{file_name}.txt', 'w', encoding='utf-8') as f:
+    with open(os.path.join(save_path, f'{file_name}.txt'), 'w', encoding='utf-8') as f:
         for line in out:
             f.write(line + '\n')
-
-if __name__ == '__main__':
-    pass

@@ -1,6 +1,5 @@
 # 实体类型
 
-
 vocab = [
     'O',
     'S-CHAPTER',  # 章

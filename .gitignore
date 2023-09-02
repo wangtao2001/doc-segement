@@ -3,4 +3,5 @@
 __pycache__
 data/label/test/*
 data/label/train/*
-model
+models
+test

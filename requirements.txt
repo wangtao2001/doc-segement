@@ -1,0 +1,12 @@
+matplotlib==3.7.2
+modelscope==1.8.4
+pandas==2.0.3
+pdfplumber==0.10.2
+python_docx==0.8.11
+pytorch_crf==0.7.2
+seqeval==1.2.2
+text2vec==1.2.2
+torch==2.0.1+cu118
+tqdm==4.65.0
+transformers==4.28.1
+zhon==2.0.2

@@ -1,165 +1,51 @@
 import torch
-from torch import nn
-from torch.utils.data import Dataset, DataLoader
-from torch.optim import Adam
-from torchcrf import CRF
-# from transformers import BertModel, BertTokenizer
-from sklearn.metrics import accuracy_score
-from text2vec import SentenceModel # 句嵌入模型
-from settings import vocab, text2vec_model
-from tqdm import tqdm
+from torch.utils.data import DataLoader
+from transformers import AdamW, get_linear_schedule_with_warmup
 import os
-import numpy as np
-from matplotlib import pyplot as plt
-
-tag2id = {tag: idx for idx, tag in enumerate(vocab)}
-id2tag = {idx: tag for idx, tag in enumerate(vocab)}
-
-# bert_model = 'bert-base-chinese'
-# tokenizer = BertTokenizer.from_pretrained(bert_model)
-# sentence_len = 100
-
-class Bert_BiLSTM_CRF(nn.Module):
-    def __init__(self, embedding_dim=768, hidden_dim=256, dropout=0.1, num_tags=len(vocab)):
-        super().__init__()
-        # 使用本地模型
-        self.text2vec_model = SentenceModel(text2vec_model['local'])
-        self.bilstm = nn.LSTM(embedding_dim, hidden_dim // 2, num_layers=2, bidirectional=True, batch_first=True)
-        self.dropout = nn.Dropout(dropout)
-        self.linear = nn.Linear(hidden_dim, num_tags)
-        self.crf = CRF(num_tags, batch_first=True)
-
-    # def forward(self, input_ids, attention_mask, tag, test=False):
-    def forward(self, sentences, tags, test=False):
-        with torch.no_grad():
-            embeds = self.text2vec_model.encode(sentences, convert_to_tensor=True)  # (batch_size, 768) 使用句嵌入模型
-            #  embeds = torch.mean(self.bert(input_ids, attention_mask=attention_mask).last_hidden_state, dim=1) # (batch_size, sentence_len, 768) -> (batch_size, 768)
-        enc, _ = self.bilstm(embeds)
-        enc = self.dropout(enc)
-        outputs = self.linear(enc)  # (batch_size, num_tags)
-        outputs = outputs.unsqueeze(1)  # (batch_size, 1, num_tags)
-        tags = tags.unsqueeze(1)  # (batch_size, 1, 1)
-        if not test:
-            loss = -self.crf.forward(outputs, tags, reduction='mean')
-            return loss
-        else:
-            return self.crf.decode(outputs)  # (batch_size, 1, 1) 最后一个维度指的是tag值
-
-
-class ProcessDataset(Dataset):
-    def __init__(self, file_folder):
-        super().__init__()
-        self.sents = []
-        self.tags = []
-        # 将多文件全部读入
-        for file_name in os.listdir(file_folder):
-            with open(os.path.join(file_folder, file_name), 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-                for line in lines:
-                    t = line.split('^')
-                    if len(t)==2 and t[1].rstrip('\n') in vocab: # 确保格式正确
-                        self.sents.append(t[0])
-                        self.tags.append(t[1].rstrip('\n'))
-
-    def __getitem__(self, idx):
-        # token = tokenizer.encode_plus(
-        #         text=self.sents[idx], 
-        #         truncation=True,
-        #         padding='max_length',
-        #         max_length=sentence_len,
-        #         add_special_tokens=True,
-        #         return_attention_mask=True,
-        #     )
-        # input_ids = torch.tensor(token['input_ids'])
-        # attention_mask = torch.tensor(token['attention_mask'])
-        # return input_ids, attention_mask, tag2id[self.tags[idx]]
-        return self.sents[idx], tag2id[self.tags[idx]]
-
-    def __len__(self):
-        return len(self.sents)
-
-
-def train(epoch, model, iterator, optimizer, device):
-    all_loss = []
-    model.train()
-    Y, Y_hat = [], []
-    losses = 0.0
-    step = 0
-    with tqdm(total=len(iterator)) as pbar:
-        for sts, tag_ids in iterator:
-            step += 1
-            pbar.update(1)
-            # sts 是一个tuple
-            tag_ids = tag_ids.to(device)
-
-            loss = model(sts, tag_ids)
-            losses += loss.item()  # 返回loss的标量值
-            all_loss.append(loss.item())
-            loss.backward()
-            optimizer.step()
-            optimizer.zero_grad()
-
-            y_hat = model(sts, tag_ids, test=True)
-            Y.extend(tag_ids.tolist())
-            Y_hat.extend([i[0] for i in y_hat])
-    acc = accuracy_score(Y, Y_hat) * 100
-    print(f'epoch: {epoch}, train loss:{losses / step}, train Acc: {acc}%')  # 每个epoch的平均loss
-    return all_loss, acc
-
-
-def test(epoch, model, iterator, device):
-    model.eval()
-    Y, Y_hat = [], []
-    losses = 0
-    step = 0
-    with tqdm(total=len(iterator)) as pbar:
-        with torch.no_grad():
-            for sts, tag_ids in iterator:
-                step += 1
-                pbar.update(1)
-                tag_ids = tag_ids.to(device)
-
-                y_hat = model(sts, tag_ids, test=True)
-                Y.extend(tag_ids.tolist())  # tensor([tag, tag, tag, ...])
-                Y_hat.extend([i[0] for i in y_hat])  # [[tag], [tag], [tag], ...] # 每次append了一个batch_size的长度
-
-                # y_true = [id2tag[i] for i in Y]
-                # y_pred = [id2tag[i] for i in Y_hat]
-    acc = accuracy_score(Y, Y_hat) * 100
-    print(f"epoch: {epoch}, test Acc: {acc}%")
-    return model, acc
+from model import Bert_BiLSTM_CRF
+from data import ProcessDataset
+import matplotlib.pyplot as plt
+from run import train, test
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 batch_size = 100
+epochs = 10
 model = Bert_BiLSTM_CRF().cuda()
 train_dataset = ProcessDataset('data/label/train')
-train_iterator = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
+train_iterator = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=False) # 一定不能打乱
 test_dataset = ProcessDataset('data/label/test')
-test_iterator = DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=True)
-optimizer = Adam(model.parameters(), lr=1e-3) # 关于学习率预热
+test_iterator = DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False)
+optimizer = AdamW(model.parameters(), lr=1e-3, eps=1e-6)
 
-train_loss_list = []
-train_acc_list = []
-test_acc_list = []
-for epoch in range(10):
-    train_all_loss, train_acc = train(epoch, model, train_iterator, optimizer, device)
-    model, test_acc = test(epoch, model, test_iterator, device)
-    if test_acc > 90:
-        # 保存模型
-        torch.save(model, f'model/model-epoch:{epoch}.pt')
-    train_loss_list.extend(train_all_loss) # 记录下所有的loss
-    train_acc_list.append(train_acc)
-    test_acc_list.append(test_acc)
+total_steps = len(train_iterator) * epochs # 总步数
+warm_up_ratio = 0.1 # 预热10%
+# 线性学习率预热
+scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=total_steps*warm_up_ratio, num_training_steps=total_steps)
 
-# 画图
-x = np.arange(0, len(train_loss_list), 1)
-plt.plot(x, train_loss_list, label='train_loss')
-plt.legend()
-plt.savefig('loss.png')
+all_loss_list, all_lr_list = [], []
+for epoch in range(epochs):
+    all_loss, all_lr = train(epoch, model, train_iterator, optimizer, scheduler, device)
+    # 记录训练过程中的信息
+    all_loss_list.extend(all_loss)
+    all_lr_list.extend(all_lr)
+    # 由于缺乏验证集，所以每个epoch都进行测试查看模型性能
+    test(epoch, model, test_iterator, device)
+
+# 保存模型
+torch.save(model, 'models/model.pt')
+
+# 绘制loss曲线
+plt.plot(all_loss_list)
+plt.xlabel('step')
+plt.ylabel('loss')
+plt.title('loss curve')
+plt.savefig('img/loss.png')
 plt.close()
-x = np.arange(0, 10, 1)
-plt.plot(x, train_acc_list, label='train_acc')
-plt.plot(x, test_acc_list, label='test_acc')
-plt.legend()
-plt.savefig('acc.png')
+# 绘制lr曲线
+plt.plot(all_lr_list)
+plt.xlabel('step')
+plt.ylabel('lr')
+plt.title('lr curve')
+plt.savefig('img/lr.png')
+plt.close()
