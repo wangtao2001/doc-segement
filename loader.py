@@ -41,3 +41,6 @@ def doc2text(path):
     with open(f'data/predict/{file_name}.txt', 'w', encoding='utf-8') as f:
         for line in out:
             f.write(line + '\n')
+
+if __name__ == '__main__':
+    pass

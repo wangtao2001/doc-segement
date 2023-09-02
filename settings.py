@@ -1,7 +1,8 @@
 # 实体类型
+
+
 vocab = [
     'O',
-    'S-TITLE',  # 标题
     'S-CHAPTER',  # 章
     'S-SECTION',  # 节
     'S-ARTICLE',  # 条

@@ -9,6 +9,8 @@ from text2vec import SentenceModel # 句嵌入模型
 from settings import vocab, text2vec_model
 from tqdm import tqdm
 import os
+import numpy as np
+from matplotlib import pyplot as plt
 
 tag2id = {tag: idx for idx, tag in enumerate(vocab)}
 id2tag = {idx: tag for idx, tag in enumerate(vocab)}
@@ -49,7 +51,7 @@ class ProcessDataset(Dataset):
         super().__init__()
         self.sents = []
         self.tags = []
-        # 支持多文件使用
+        # 将多文件全部读入
         for file_name in os.listdir(file_folder):
             with open(os.path.join(file_folder, file_name), 'r', encoding='utf-8') as f:
                 lines = f.readlines()
@@ -78,7 +80,9 @@ class ProcessDataset(Dataset):
 
 
 def train(epoch, model, iterator, optimizer, device):
+    all_loss = []
     model.train()
+    Y, Y_hat = [], []
     losses = 0.0
     step = 0
     with tqdm(total=len(iterator)) as pbar:
@@ -90,11 +94,17 @@ def train(epoch, model, iterator, optimizer, device):
 
             loss = model(sts, tag_ids)
             losses += loss.item()  # 返回loss的标量值
+            all_loss.append(loss.item())
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
 
-    print(f'epoch: {epoch}, loss:{losses / step}')  # 每个epoch的平均loss
+            y_hat = model(sts, tag_ids, test=True)
+            Y.extend(tag_ids.tolist())
+            Y_hat.extend([i[0] for i in y_hat])
+    acc = accuracy_score(Y, Y_hat) * 100
+    print(f'epoch: {epoch}, train loss:{losses / step}, train Acc: {acc}%')  # 每个epoch的平均loss
+    return all_loss, acc
 
 
 def test(epoch, model, iterator, device):
@@ -110,24 +120,18 @@ def test(epoch, model, iterator, device):
                 tag_ids = tag_ids.to(device)
 
                 y_hat = model(sts, tag_ids, test=True)
-
-                loss = model(sts, tag_ids)  # 同时获取loss和预测值
-                losses += loss.item()
-                Y.append(tag_ids.tolist())  # tensor([tag, tag, tag, ...])
-                Y_hat.append([i[0] for i in y_hat])  # [[tag], [tag], [tag], ...]
+                Y.extend(tag_ids.tolist())  # tensor([tag, tag, tag, ...])
+                Y_hat.extend([i[0] for i in y_hat])  # [[tag], [tag], [tag], ...] # 每次append了一个batch_size的长度
 
                 # y_true = [id2tag[i] for i in Y]
                 # y_pred = [id2tag[i] for i in Y_hat]
-
-    print(Y_hat)
-    print(Y)
-    acc = (Y_hat == Y).mean()*100 #accuracy_score(Y, Y_hat) * 100
-    print(f"epoch: {epoch}, test Loss:{losses / step}, test Acc:{acc}%")
-    return model, losses / step, acc
+    acc = accuracy_score(Y, Y_hat) * 100
+    print(f"epoch: {epoch}, test Acc: {acc}%")
+    return model, acc
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-batch_size = 20
+batch_size = 100
 model = Bert_BiLSTM_CRF().cuda()
 train_dataset = ProcessDataset('data/label/train')
 train_iterator = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
@@ -135,9 +139,27 @@ test_dataset = ProcessDataset('data/label/test')
 test_iterator = DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=True)
 optimizer = Adam(model.parameters(), lr=1e-3) # 关于学习率预热
 
+train_loss_list = []
+train_acc_list = []
+test_acc_list = []
 for epoch in range(10):
-    # train(epoch, model, train_iterator, optimizer, device)
-    model, val_loss, val_acc = test(epoch, model, train_iterator, device)
-    if val_acc > 90:
+    train_all_loss, train_acc = train(epoch, model, train_iterator, optimizer, device)
+    model, test_acc = test(epoch, model, test_iterator, device)
+    if test_acc > 90:
         # 保存模型
         torch.save(model, f'model/model-epoch:{epoch}.pt')
+    train_loss_list.extend(train_all_loss) # 记录下所有的loss
+    train_acc_list.append(train_acc)
+    test_acc_list.append(test_acc)
+
+# 画图
+x = np.arange(0, len(train_loss_list), 1)
+plt.plot(x, train_loss_list, label='train_loss')
+plt.legend()
+plt.savefig('loss.png')
+plt.close()
+x = np.arange(0, 10, 1)
+plt.plot(x, train_acc_list, label='train_acc')
+plt.plot(x, test_acc_list, label='test_acc')
+plt.legend()
+plt.savefig('acc.png')
