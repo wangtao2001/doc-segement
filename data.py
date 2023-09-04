@@ -7,19 +7,26 @@ tag2id = {tag: idx for idx, tag in enumerate(vocab)}
 id2tag = {idx: tag for idx, tag in enumerate(vocab)}
 
 class ProcessDataset(Dataset):
-    def __init__(self, file_folder):
+    # 预测的时候传入的是单个文件，训练的时候是批量传入
+    def __init__(self, file_folder_or_name, predict=False):
         super().__init__()
         self.sents = []
         self.tags = []
         # 将多文件全部读入
-        for file_name in os.listdir(file_folder):
-            with open(os.path.join(file_folder, file_name), 'r', encoding='utf-8') as f:
+        if not predict:
+            file_name_list = [os.path.join(file_folder_or_name, name) for name in os.listdir(file_folder_or_name)]
+        else:
+            file_name_list = [file_folder_or_name]
+        for file_name in file_name_list:
+            with open(file_name, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
                 for line in lines:
                     t = line.split('^')
-                    if len(t)==2 and t[1].rstrip('\n') in vocab: # 确保格式正确
+                    if len(t)==2 and t[1].rstrip('\n') in vocab and not predict: # 确保格式正确
                         self.sents.append(t[0])
                         self.tags.append(t[1].rstrip('\n'))
+                    elif predict: # 预测时不需要标签
+                        self.sents.append(t[0].rstrip('\n'))
 
     def __getitem__(self, idx):
         # token = tokenizer.encode_plus(

@@ -59,7 +59,7 @@ def test(epoch, model, iterator, device):
                 pbar.update(1)
                 tag_ids = tag_ids.to(device)
 
-                y_hat = model(sts, test=True)
+                y_hat = model(sts, predict=True)
                 y_hat = [i[0] for i in y_hat]
                 y = tag_ids.tolist()
                 y_hat = [id2tag[i] for i in y_hat]

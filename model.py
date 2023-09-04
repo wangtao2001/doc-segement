@@ -20,7 +20,7 @@ class Bert_BiLSTM_CRF(nn.Module):
         self.crf = CRF(num_tags, batch_first=True)
 
     # def forward(self, input_ids, attention_mask, tag, test=False):
-    def forward(self, sentences, tags=None, test=False):
+    def forward(self, sentences, tags=None, predict=False):
         with torch.no_grad():
             embeds = self.text2vec_model.encode(sentences, convert_to_tensor=True)  # (batch_size, 768) 使用句嵌入模型
             #  embeds = torch.mean(self.bert(input_ids, attention_mask=attention_mask).last_hidden_state, dim=1) # (batch_size, sentence_len, 768) -> (batch_size, 768)
@@ -28,7 +28,7 @@ class Bert_BiLSTM_CRF(nn.Module):
         enc = self.dropout(enc)
         outputs = self.linear(enc)  # (batch_size, num_tags)
         outputs = outputs.unsqueeze(1)  # (batch_size, 1, num_tags)
-        if not test:
+        if not predict:
             tags = tags.unsqueeze(1)  # (batch_size, 1, 1)
             loss = -self.crf.forward(outputs, tags, reduction='mean')
             return loss
