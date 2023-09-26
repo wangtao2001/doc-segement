@@ -1,4 +1,4 @@
-from data import ProcessDataset, id2tag
+from data import Dataset, id2tag
 from loader import doc2text
 import torch
 import os
@@ -22,9 +22,9 @@ def doc_predict():
     # 预测并保存txt，单个文件单独执行
     txt_list = os.listdir(txt_path)
     for txt in txt_list:
-        p = ProcessDataset(os.path.join(txt_path, txt), predict=True)
-        y_hat = [id2tag[y[0]] for y in model(p.sents, predict=True)]
-        sts = p.sents
+        d = Dataset(os.path.join(txt_path, txt), predict=True)
+        y_hat = [id2tag[y[0]] for y in model(d.sents, predict=True)]
+        sts = d.sents
         for i in range(len(sts)):
             sts[i] += '^' + y_hat[i] + '\n'
         # 保存一份txt

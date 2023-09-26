@@ -1,13 +1,12 @@
 import os
 import random
-from torch.utils.data import Dataset
 from settings import vocab
 import torch
 
 tag2id = {tag: idx for idx, tag in enumerate(vocab)}
 id2tag = {idx: tag for idx, tag in enumerate(vocab)}
 
-class ProcessDataset(Dataset):
+class Dataset:
     # 预测的时候传入的是单个文件，训练的时候是批量传入
     def __init__(self, file_folder_or_name, predict=False):
         super().__init__()
@@ -31,7 +30,7 @@ class ProcessDataset(Dataset):
                     elif predict: # 预测时不需要标签
                         self.sents.append(t[0].rstrip('\n'))
 
-    def __getitem__(self, idx):
+    # def __getitem__(self, idx):
         # token = tokenizer.encode_plus(
         #         text=self.sents[idx], 
         #         truncation=True,
@@ -43,19 +42,29 @@ class ProcessDataset(Dataset):
         # input_ids = torch.tensor(token['input_ids'])
         # attention_mask = torch.tensor(token['attention_mask'])
         # return input_ids, attention_mask, tag2id[self.tags[idx]]
-        return self.sents[idx], tag2id[self.tags[idx]]
+        # return self.sents[idx], tag2id[self.tags[idx]]
+
+    # def __len__(self):
+    #     return len(self.sents)
+
+# 分文章返回sts和tag_ids的batch，而不是固定batch的大小
+class DataIterator(Dataset):
+    def __init__(self, file_folder):
+        super().__init__(file_folder)
+        self.all_size = 0
 
     def __len__(self):
-        return len(self.sents)
+        return len(self.__file_size)
     
-    # 创建一个生成器，每次按文章返回一个batch的sts和tag_ids，而不是每次固定batch的大小
-    def iter(self):
-        all_size = 0
-        for size in self.__file_size:
-            tags = self.tags[all_size: all_size+size]
-            tag_ids = [tag2id[tag] for tag in tags]
-            yield tuple(self.sents[all_size: all_size+size]), torch.tensor(tag_ids)
-            all_size += size
+    def __iter__(self):
+        return self
+    
+    def __next__(self):
+        current_size = self.__file_size.pop(0)
+        sts = self.sents[self.all_size: self.all_size + current_size]
+        tag_ids = torch.tensor([tag2id[i] for i in self.tags[self.all_size: self.all_size + current_size]])
+        self.all_size += current_size
+        return sts, tag_ids
 
 
 # 将data/label下的文件随机打乱并分成训练集和测试集
