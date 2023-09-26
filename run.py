@@ -28,7 +28,7 @@ def train(epoch, model, iterator, optimizer, scheduler, device):
             scheduler.step()
             optimizer.zero_grad()
 
-            y_hat = model(sts, tag_ids,  test=True)
+            y_hat = model(sts, tag_ids,  predict=True)
             y_hat = [i[0] for i in y_hat] # [[1], [3], ...]
             y = tag_ids.tolist() # tensor(1, 3, ....)
             # 再转换为BIOES形式
@@ -44,7 +44,7 @@ def train(epoch, model, iterator, optimizer, scheduler, device):
     # print("f1: ", f1_score([Y], [Y_hat], mode='strict', scheme=IOBES))
     print("classification report: ")
     print(classification_report([Y], [Y_hat], mode='strict', scheme=IOBES))
-    print(f"eva train loss:{losses / step}")  # 每个epoch的平均loss
+    print(f"train loss:{losses / step}")  # 每个epoch的平均loss
     return all_loss, all_lr
 
 

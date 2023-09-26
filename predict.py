@@ -87,4 +87,5 @@ def txt2excel():
         df.to_excel(os.path.join(result_path, f"{txt_name.strip('.txt')}.xlsx"), index=False)
             
 if __name__ == "__main__":
+    doc_predict()
     txt2excel()

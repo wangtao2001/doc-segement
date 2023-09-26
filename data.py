@@ -2,6 +2,7 @@ import os
 import random
 from torch.utils.data import Dataset
 from settings import vocab
+import torch
 
 tag2id = {tag: idx for idx, tag in enumerate(vocab)}
 id2tag = {idx: tag for idx, tag in enumerate(vocab)}
@@ -12,6 +13,7 @@ class ProcessDataset(Dataset):
         super().__init__()
         self.sents = []
         self.tags = []
+        self.__file_size = []
         # 将多文件全部读入
         if not predict:
             file_name_list = [os.path.join(file_folder_or_name, name) for name in os.listdir(file_folder_or_name)]
@@ -20,6 +22,7 @@ class ProcessDataset(Dataset):
         for file_name in file_name_list:
             with open(file_name, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
+                self.__file_size.append(len(lines)) # 将每份文章的长度记录下来
                 for line in lines:
                     t = line.split('^')
                     if len(t)==2 and t[1].rstrip('\n') in vocab and not predict: # 确保格式正确
@@ -44,6 +47,15 @@ class ProcessDataset(Dataset):
 
     def __len__(self):
         return len(self.sents)
+    
+    # 创建一个生成器，每次按文章返回一个batch的sts和tag_ids，而不是每次固定batch的大小
+    def iter(self):
+        all_size = 0
+        for size in self.__file_size:
+            tags = self.tags[all_size: all_size+size]
+            tag_ids = [tag2id[tag] for tag in tags]
+            yield tuple(self.sents[all_size: all_size+size]), torch.tensor(tag_ids)
+            all_size += size
 
 
 # 将data/label下的文件随机打乱并分成训练集和测试集

@@ -8,14 +8,17 @@ import matplotlib.pyplot as plt
 from run import train, test
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = 'cuda:1' if torch.cuda.is_available() else 'cpu'
 batch_size = 100
-epochs = 10
+epochs = 8
 model = Bert_BiLSTM_CRF().cuda()
 train_dataset = ProcessDataset('data/label/train')
-train_iterator = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=False) # 一定不能打乱
+# train_iterator = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=False) # 一定不能打乱
+# 使用新的迭代器
+train_iterator = train_dataset.iter()
 test_dataset = ProcessDataset('data/label/test')
-test_iterator = DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False)
+# test_iterator = DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False)
+test_iterator = test_dataset.iter()
 optimizer = AdamW(model.parameters(), lr=1e-3, eps=1e-6)
 
 total_steps = len(train_iterator) * epochs # 总步数
