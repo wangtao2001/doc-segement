@@ -12,7 +12,7 @@ class Dataset:
         super().__init__()
         self.sents = []
         self.tags = []
-        self.__file_size = []
+        self._file_size = []
         # 将多文件全部读入
         if not predict:
             file_name_list = [os.path.join(file_folder_or_name, name) for name in os.listdir(file_folder_or_name)]
@@ -21,14 +21,16 @@ class Dataset:
         for file_name in file_name_list:
             with open(file_name, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
-                self.__file_size.append(len(lines)) # 将每份文章的长度记录下来
+                sum = 0
                 for line in lines:
                     t = line.split('^')
                     if len(t)==2 and t[1].rstrip('\n') in vocab and not predict: # 确保格式正确
                         self.sents.append(t[0])
                         self.tags.append(t[1].rstrip('\n'))
+                        sum += 1
                     elif predict: # 预测时不需要标签
                         self.sents.append(t[0].rstrip('\n'))
+                self._file_size.append(sum) # 将每份文章的长度记录下来
 
     # def __getitem__(self, idx):
         # token = tokenizer.encode_plus(
@@ -51,20 +53,26 @@ class Dataset:
 class DataIterator(Dataset):
     def __init__(self, file_folder):
         super().__init__(file_folder)
-        self.all_size = 0
+        self._file_size_copy = self._file_size.copy()
+        self._all_size = 0
 
     def __len__(self):
-        return len(self.__file_size)
+        return len(self._file_size)
     
     def __iter__(self):
         return self
     
     def __next__(self):
-        current_size = self.__file_size.pop(0)
-        sts = self.sents[self.all_size: self.all_size + current_size]
-        tag_ids = torch.tensor([tag2id[i] for i in self.tags[self.all_size: self.all_size + current_size]])
-        self.all_size += current_size
-        return sts, tag_ids
+        if len(self._file_size) != 0:
+            current_size = self._file_size.pop(0)
+            sts = self.sents[self._all_size: self._all_size + current_size]
+            tag_ids = torch.tensor([tag2id[i] for i in self.tags[self._all_size: self._all_size + current_size]])
+            self._all_size += current_size
+            return sts, tag_ids
+        else:
+            self._all_size = 0 # 重置
+            self._file_size = self._file_size_copy.copy()
+            raise StopIteration
 
 
 # 将data/label下的文件随机打乱并分成训练集和测试集

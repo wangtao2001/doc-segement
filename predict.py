@@ -12,7 +12,6 @@ result_txt_path = 'data/predict/result/txt'
 def doc_predict():
     # 将文档转换为txt
     doc_list = os.listdir(doc_path)
-    doc_list = [file for file in doc_list if file.endswith('.docx') or file.endswith('.pdf')]
 
     for file in doc_list:
         doc2text(os.path.join(doc_path, file), txt_path)
