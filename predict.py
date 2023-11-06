@@ -24,6 +24,17 @@ def doc_predict():
         d = Dataset(os.path.join(txt_path, txt), predict=True)
         y_hat = [id2tag[y[0]] for y in model(d.sents, predict=True)]
         sts = d.sents
+
+        # 这里做一步后处理，连续多个E出现，就把后面的E全部替换为S，否则在txt2excel中后面的E会被丢弃
+        flag = False
+        for i in range(len(y_hat)):
+            if not flag and y_hat[i] == 'E-ARTICLE':
+                flag = True
+            elif flag and y_hat[i] == 'E-ARTICLE':
+                y_hat[i] = 'S-ARTICLE'
+            else:
+                flag = False
+
         for i in range(len(sts)):
             sts[i] += '^' + y_hat[i] + '\n'
         # 保存一份txt
